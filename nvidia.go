@@ -26,8 +26,7 @@ func id2nvidiaID(id string) string {
 func getEnvItems(devs []string) []string {
 	var nvidiaIds []string 
 	for _, ID := range devs {
-			log.Printf(" getEnvItems[] = ID = %s.", ID)
-			nvidiaIds = append(nvidiaIds, id2nvidiaID(ID))
+		nvidiaIds = append(nvidiaIds, id2nvidiaID(ID))
 	}
 	log.Printf("INFO: getEnvItems(): devs = %s.", strings.Join(devs, ","))
 	log.Printf("INFO: getEnvItems(): nvidiaIds = %s.", strings.Join(nvidiaIds, ","))	
@@ -110,7 +109,6 @@ func watchXIDs(ctx context.Context, devs []*pluginapi.Device, xids chan<- *plugi
 		}
 
 		for _, d := range devs {
-			log.Printf("Check = %s => %s.",d.ID , id2nvidiaID(d.ID))			
 			if id2nvidiaID(d.ID) == *e.UUID {
 				xids <- d
 			}
