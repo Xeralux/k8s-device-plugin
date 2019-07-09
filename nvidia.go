@@ -5,7 +5,7 @@ package main
 import (
 	"log"
 	"strings"
-
+	"strconv"
 	"github.com/NVIDIA/gpu-monitoring-tools/bindings/go/nvml"
 
 	"golang.org/x/net/context"
@@ -18,6 +18,21 @@ func check(err error) {
 	}
 }
 
+func id2nvidiaID(id string) string {
+	nvidiaID := strings.Split(id, "_")[0]
+	return nvidiaID
+}	
+
+func getEnvItems(devs []string) []string {
+	var nvidiaIds []string 
+	for _, ID := range devs {
+		nvidiaIds = append(nvidiaIds, id2nvidiaID(ID))
+	}
+	log.Printf("INFO: getEnvItems(): devs = %s.", strings.Join(devs, ","))
+	log.Printf("INFO: getEnvItems(): nvidiaIds = %s.", strings.Join(nvidiaIds, ","))	
+	return nvidiaIds
+}
+
 func getDevices() []*pluginapi.Device {
 	n, err := nvml.GetDeviceCount()
 	check(err)
@@ -26,16 +41,18 @@ func getDevices() []*pluginapi.Device {
 	for i := uint(0); i < n; i++ {
 		d, err := nvml.NewDeviceLite(i)
 		check(err)
-		devs = append(devs, &pluginapi.Device{
-			ID:     d.UUID,
-			Health: pluginapi.Healthy,
-		})
+		log.Printf("NVIDIA Driver Info: UUID = %s, PCI.BusID = %s", d.UUID, d.PCI.BusID)
+		for cnt := int64(0); cnt < int64(containerPerGpu); cnt++ {
+			strId := d.UUID + "_" + strconv.FormatInt(cnt, 10)
+			devs = append(devs, &pluginapi.Device{ ID:     strId, Health: pluginapi.Healthy, })
+		}
 	}
 
 	return devs
 }
 
 func deviceExists(devs []*pluginapi.Device, id string) bool {
+	log.Printf("deviceExists = %s.", id)
 	for _, d := range devs {
 		if d.ID == id {
 			return true
@@ -49,7 +66,9 @@ func watchXIDs(ctx context.Context, devs []*pluginapi.Device, xids chan<- *plugi
 	defer nvml.DeleteEventSet(eventSet)
 
 	for _, d := range devs {
-		err := nvml.RegisterEventForDevice(eventSet, nvml.XidCriticalError, d.ID)
+
+		log.Printf("watchXIDs:RegisterEventForDevice = %s.", d.ID)
+		err := nvml.RegisterEventForDevice(eventSet, nvml.XidCriticalError, id2nvidiaID(d.ID))
 		if err != nil && strings.HasSuffix(err.Error(), "Not Supported") {
 			log.Printf("Warning: %s is too old to support healthchecking: %s. Marking it unhealthy.", d.ID, err)
 
@@ -90,7 +109,7 @@ func watchXIDs(ctx context.Context, devs []*pluginapi.Device, xids chan<- *plugi
 		}
 
 		for _, d := range devs {
-			if d.ID == *e.UUID {
+			if id2nvidiaID(d.ID) == *e.UUID {
 				xids <- d
 			}
 		}
